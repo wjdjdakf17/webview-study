@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>웹뷰 호스트</title>
+    <style>
+      body { font-family: sans-serif; margin: 12px; }
+      #wv { width: 100%; height: 480px; border: 1px solid #ccc; }
+      button { padding: 6px 12px; margin: 4px 4px 8px 0; }
+      #log { background: #f6f6f6; padding: 8px; font-size: 13px; min-height: 40px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h2>호스트 앱 (네이티브 쪽)</h2>
+    <button id="send">웹뷰에 메시지 보내기</button>
+    <button id="nav">구글로 이동</button>
+
+    <!--
+      <webview> = Electron 창 안에 박혀 있는 "임베디드 브라우저".
+      src에 넣은 사이트는 완전히 별도 프로세스에서 렌더링된다.
+      preload는 이 웹뷰 안의 페이지가 로드되기 전에 주입되는 스크립트(다리 역할).
+    -->
+    <webview id="wv" src="https://example.com" preload="webview-preload.js"></webview>
+
+    <h3>메시지 로그</h3>
+    <div id="log">(아직 없음)</div>
+
+    <script>
+      const wv = document.getElementById('wv');
+      const log = document.getElementById('log');
+      const append = (msg) => (log.textContent += '\n' + msg);
+
+      // 호스트 → 웹뷰: webview 객체의 .send() 사용 (메인을 거치지 않는 직접 채널)
+      document.getElementById('send').onclick = () => {
+        wv.send('host-greeting', '호스트가 보내는 인사! ' + new Date().toLocaleTimeString());
+        append('[호스트] 웹뷰에 보냄');
+      };
+
+      document.getElementById('nav').onclick = () => {
+        wv.loadURL('https://www.google.com');
+      };
+
+      // 웹뷰 안 페이지가 ipcRenderer.send로 보낸 메시지는 여기서 'ipc-message' 이벤트로 받는다.
+      wv.addEventListener('ipc-message', (e) => {
+        if (e.channel === 'webview-pong') append('[웹뷰 → 호스트] ' + e.args.join(', '));
+      });
+
+      // 메인 프로세스가 중계해준 메시지 (host-preload.js가 노출한 다리로 수신)
+      window.hostApi.onWebviewRelay((payload) => append('[메인이 중계] ' + payload));
+
+      wv.addEventListener('dom-ready', () => append('[시스템] 웹뷰 로드 완료: ' + wv.getURL()));
+    </script>
+  </body>
+</html>
